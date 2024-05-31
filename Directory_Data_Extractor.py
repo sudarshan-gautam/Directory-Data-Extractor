@@ -11,17 +11,19 @@ def create_db():
         CREATE TABLE IF NOT EXISTS files (
             id INTEGER PRIMARY KEY,
             filename TEXT,
-            filepath TEXT
+            filepath TEXT,
+            char_count INTEGER,
+            word_count INTEGER
         )
     ''')
     conn.commit()
     conn.close()
 
 # Function to add a file to the database
-def add_file_to_db(filename, filepath):
+def add_file_to_db(filename, filepath, char_count, word_count):
     conn = sqlite3.connect('processed_files.db')
     c = conn.cursor()
-    c.execute('INSERT INTO files (filename, filepath) VALUES (?, ?)', (filename, filepath))
+    c.execute('INSERT INTO files (filename, filepath, char_count, word_count) VALUES (?, ?, ?, ?)', (filename, filepath, char_count, word_count))
     conn.commit()
     conn.close()
 
@@ -71,6 +73,9 @@ def process_files():
         return
 
     try:
+        total_characters = 0
+        total_words = 0
+
         # Open the output file in write mode
         with open(output_file_path, 'w', encoding='utf-8') as output_file:
             # Traverse the project directory and count characters and words in each file
@@ -79,6 +84,8 @@ def process_files():
                     if file.endswith('.js') or file.endswith('.css') or file.endswith('.html') or file.endswith('.json') or file.endswith('.txt'):
                         file_path = os.path.join(root, file)
                         characters, words, content = count_in_file(file_path)
+                        total_characters += characters
+                        total_words += words
                         output_file.write(f"======================\n")
                         output_file.write(f"File: {file_path}\n")
                         output_file.write(f"======================\n")
@@ -96,12 +103,12 @@ def process_files():
                     output_file.write(f'{subindent}{connector}{f}\n')
 
         # Add the output file to the database
-        add_file_to_db(os.path.basename(output_file_path), output_file_path)
+        add_file_to_db(os.path.basename(output_file_path), output_file_path, total_characters, total_words)
 
         # Refresh the file list in the table
         refresh_file_list()
 
-        messagebox.showinfo("Success", f"Processing completed.\nConsolidated file created at: {output_file_path}")
+        messagebox.showinfo("Success", f"Processing completed.\nTotal characters: {total_characters}\nTotal words: {total_words}\nConsolidated file created at: {output_file_path}")
     except Exception as e:
         messagebox.showerror("Error", f"An error occurred: {e}")
 
@@ -110,7 +117,7 @@ def refresh_file_list():
     for row in tree.get_children():
         tree.delete(row)
     for file in get_files_from_db():
-        tree.insert("", "end", values=(file[0], file[1], file[2]))
+        tree.insert("", "end", values=(file[0], file[1], file[2], file[3], file[4]))
 
 # Function to select the base directory
 def select_base_dir():
@@ -172,18 +179,22 @@ tk.Button(main_frame, text="Process Files", command=process_files, bg='#1E5AAF',
 table_frame = tk.Frame(main_frame, bg='white')
 table_frame.pack(expand=True, fill=tk.BOTH)
 
-columns = ("ID", "Filename", "Filepath")
+columns = ("ID", "Filename", "Filepath", "Char Count", "Word Count")
 tree = ttk.Treeview(table_frame, columns=columns, show='headings', yscrollcommand=lambda f, l: scrollbar.set(f, l))
 
 # Define headings
 tree.heading("ID", text="ID")
 tree.heading("Filename", text="Filename")
 tree.heading("Filepath", text="Filepath")
+tree.heading("Char Count", text="Char Count")
+tree.heading("Word Count", text="Word Count")
 
 # Define columns
 tree.column("ID", anchor="w", width=50)
 tree.column("Filename", anchor="w", width=200)
 tree.column("Filepath", anchor="w", width=400)
+tree.column("Char Count", anchor="w", width=100)
+tree.column("Word Count", anchor="w", width=100)
 
 # Add a scrollbar
 scrollbar = ttk.Scrollbar(table_frame, orient=tk.VERTICAL, command=tree.yview)
